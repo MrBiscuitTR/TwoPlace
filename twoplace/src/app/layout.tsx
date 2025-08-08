@@ -14,6 +14,8 @@ import {
 } from "firebase/firestore";
 import CallIncomingModal from "@/components/CallIncomingModal";
 import Sidebar from "@/components/sidebar";
+import { CallProvider } from "../context/Callcontext";
+import MiniCallWidget from "@/components/MiniCallWidget";
 import "@/app/globals.css";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -91,17 +93,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <div className="app-layout">
-          <Sidebar />
-          <main className="main-content">{children}</main>
-          {incomingCall && (
-            <CallIncomingModal
-              callerUid={incomingCall.callerUid}
-              onAccept={handleAcceptCall}
-              onReject={handleRejectCall}
-            />
-          )}
-        </div>
+        <CallProvider>
+          <div className="app-layout">
+            <Sidebar />
+            <main className="main-content">{children}</main>
+              {incomingCall && (
+                <CallIncomingModal
+                  callerUid={incomingCall.callerUid}
+                  onAccept={handleAcceptCall}
+                  onReject={handleRejectCall}
+                />
+              )}
+          </div>
+          <MiniCallWidget />
+        </CallProvider>
       </body>
     </html>
   );
