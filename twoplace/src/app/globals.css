@@ -232,6 +232,37 @@ p {
 }
 
 
+.friend-button {
+  padding: 6px 12px;
+  border: 1px solid #0070f3;
+  border-radius: 6px;
+  background-color: white;
+  color: #0070f3;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+  margin-left: 8px;
+}
+
+.friend-button:hover {
+  background-color: #0070f3;
+  color: white;
+}
+
+.friend-button.sent {
+  background-color: transparent;
+  color: #666;
+  border: none;
+  cursor: pointer;
+  font-style: italic;
+}
+
+.friend-button.sent:hover {
+  color: #0070f3;
+  text-decoration: underline;
+  background-color: transparent;
+}
+
 
 /* glow frame */
 .video-wrapper::before {

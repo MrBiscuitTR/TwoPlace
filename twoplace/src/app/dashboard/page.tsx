@@ -1,53 +1,64 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { useRouter } from "next/navigation";
-import { UserProfile, FriendRequest, CallRecord } from "@/lib/types";
-import { createUserProfileIfNotExists } from "@/lib/user";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  deleteDoc,
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import type { UserProfile, FriendRequest, CallRecord } from "@/lib/types";
+import { rejectRequest, acceptRequest } from "../search/friends";
 
 export default function DashboardPage() {
-  const router = useRouter();
-
   const [user, setUser] = useState<UserProfile | null>(null);
   const [friends, setFriends] = useState<UserProfile[]>([]);
   const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
-  const [requests, setRequests] = useState<FriendRequest[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [requests, setRequests] = useState<FriendRequest[]>([]); // Gelen istekler
+  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]); // Gönderilen istekler
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        router.push("/login");
+        // İstersen yönlendirme yapılabilir
+        // redirect("/register");
+        setUser(null);
         return;
       }
 
-      // Eğer Firestore'da kullanıcı profili yoksa otomatik oluştur
-      await createUserProfileIfNotExists(firebaseUser);
-
+      // Kullanıcı profilini çek
       const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
       if (userDoc.exists()) {
         setUser(userDoc.data() as UserProfile);
-      } else {
-        // Çok nadir durumda yine register yönlendirmesi olabilir ama normalde buraya gelmez
-        router.push("/register");
-        return;
       }
 
-      // Arkadaşları çek
-      const friendQuery = query(
+      // Arkadaşları çek (status accepted, fromUid veya toUid user olabilir, ikisini de kontrol etmek gerekebilir)
+      const acceptedQuery = query(
         collection(db, "friendRequests"),
         where("status", "==", "accepted"),
         where("fromUid", "==", firebaseUser.uid)
       );
-      const friendDocs = await getDocs(friendQuery);
+      const acceptedDocs = await getDocs(acceptedQuery);
+      const friendUidsFrom = acceptedDocs.docs.map((doc) => doc.data().toUid);
 
-      const friendUids = friendDocs.docs.map((doc) => doc.data().toUid);
+      // Ayrıca toUid == user olabilir (ters istekler için)
+      const acceptedQueryTo = query(
+        collection(db, "friendRequests"),
+        where("status", "==", "accepted"),
+        where("toUid", "==", firebaseUser.uid)
+      );
+      const acceptedDocsTo = await getDocs(acceptedQueryTo);
+      const friendUidsTo = acceptedDocsTo.docs.map((doc) => doc.data().fromUid);
+
+      const friendUids = Array.from(new Set([...friendUidsFrom, ...friendUidsTo]));
+
       const profiles: UserProfile[] = [];
-
       for (const uid of friendUids) {
         const fDoc = await getDoc(doc(db, "users", uid));
         if (fDoc.exists()) {
@@ -56,7 +67,7 @@ export default function DashboardPage() {
       }
       setFriends(profiles);
 
-      // Çağrı geçmişi çek
+      // Çağrı geçmişi çek (caller veya receiver user olabilir, o da yapılabilir)
       const callQuery = query(
         collection(db, "calls"),
         where("callerUid", "==", firebaseUser.uid)
@@ -67,7 +78,7 @@ export default function DashboardPage() {
       );
       setCallHistory(calls);
 
-      // Arkadaşlık isteklerini çek
+      // Gelen bekleyen istekler (status pending, toUid current user)
       const reqQuery = query(
         collection(db, "friendRequests"),
         where("toUid", "==", firebaseUser.uid),
@@ -79,35 +90,42 @@ export default function DashboardPage() {
       );
       setRequests(reqs);
 
-      setLoading(false);
+      // Gönderilen bekleyen istekler (status pending, fromUid current user)
+      const sentReqQuery = query(
+        collection(db, "friendRequests"),
+        where("fromUid", "==", firebaseUser.uid),
+        where("status", "==", "pending")
+      );
+      const sentReqDocs = await getDocs(sentReqQuery);
+      const sentReqs = sentReqDocs.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as FriendRequest)
+      );
+      setSentRequests(sentReqs);
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
-  if (loading) {
-    return <div className="loading">Yükleniyor...</div>;
-  }
-
-  if (!user) {
-    return <div>Kullanıcı bulunamadı.</div>;
-  }
-
+  // Arama filtresi
   const filteredFriends = friends.filter((f) =>
     f.username.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleCancelRequest = async (requestId: string) => {
+    await deleteDoc(doc(db, "friendRequests", requestId));
+    setSentRequests((prev) => prev.filter((r) => r.id !== requestId));
+  };
+
   return (
     <div className="dashboard-page">
-      <h1>Hoşgeldin, {user.displayName}</h1>
+      <h1>Hoşgeldin, {user?.displayName}</h1>
 
       <div className="friend-search">
         <input
           type="text"
-          placeholder="Arkadaşlarda ara..."
+          placeholder="Arkadaş ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="input-search"
         />
       </div>
 
@@ -117,42 +135,61 @@ export default function DashboardPage() {
           {filteredFriends.map((friend) => (
             <li key={friend.uid} className="friend-item">
               {friend.displayName} (@{friend.username})
-              <button className="call-button">Ara</button>
+              {/* Buraya Call butonu veya diğer aksiyonlar eklenebilir */}
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="past-calls">
-        <h2>Geçmiş Çağrılar</h2>
+      <section className="sent-friend-requests">
+        <h2>Gönderilen Arkadaşlık İstekleri</h2>
         <ul>
-          {callHistory.map((call) => (
-            <li key={call.id} className="call-item">
-              <div>
-                <strong>Aranan:</strong> {call.receiverUid}<br />
-                <small>Başlama: {call.startedAt.toDate().toLocaleString()}</small><br />
-                {call.endedAt && (
-                  <small>Bitiş: {call.endedAt.toDate().toLocaleString()}</small>
-                )}
-                {call.wasAutoEnded && <div className="auto-ended">Otomatik Sonlandı</div>}
-                {call.sleepTimerMinutes && (
-                  <div>Uyku Zamanlayıcı: {call.sleepTimerMinutes} dakika</div>
-                )}
-              </div>
+          {sentRequests.map((req) => (
+            <li key={req.id} className="sent-request-item">
+              <span>To: {req.toName} (@{req.toUid})</span>
+              <button onClick={() => handleCancelRequest(req.id)}>
+                İsteği Geri Çek
+              </button>
             </li>
           ))}
         </ul>
       </section>
 
       <section className="friend-requests">
-        <h2>Arkadaşlık İstekleri</h2>
+        <h2>Gelen Arkadaşlık İstekleri</h2>
         <ul>
           {requests.map((req) => (
             <li key={req.id} className="request-item">
-              <span>Gönderen: {req.fromUid}</span>
+              <span>From: {req.fromName} (@{req.fromUid})</span>
               <div className="request-actions">
-                <button className="accept-button">Kabul Et</button>
-                <button className="decline-button">Reddet</button>
+                {/* Accept / Reject butonlarını buraya ekleyebilirsin */}
+                <button onClick={() => acceptRequest(req)}>Onayla</button>
+                <button onClick={() => rejectRequest(req.id)}>Reddet</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="past-calls">
+        <h2>Çağrı Geçmişi</h2>
+        <ul>
+          {callHistory.map((call) => (
+            <li key={call.id} className="call-item">
+              <div>
+                <strong>To:</strong> {call.receiverUid}
+                <br />
+                <small>
+                  Başlangıç: {call.startedAt.toDate().toLocaleString()}
+                </small>
+                <br />
+                {call.endedAt && (
+                  <small>Bitiş: {call.endedAt.toDate().toLocaleString()}</small>
+                )}
+                {call.wasAutoEnded && <div className="auto-ended">Otomatik Sonlandı</div>}
+                {call.sleepTimerMinutes && (
+                  <div>Uyku Zamanlayıcı: {call.sleepTimerMinutes} dk</div>
+                )}
               </div>
             </li>
           ))}

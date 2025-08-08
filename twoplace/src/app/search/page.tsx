@@ -1,31 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
-import { UserProfile, FriendRequest } from "@/lib/types";
+import { auth, db } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  doc,
+  Timestamp,
+  serverTimestamp,
+  getDoc,
+} from "firebase/firestore";
+import type { UserProfile, FriendRequest } from "@/lib/types";
 
 export default function SearchPage() {
-  const [search, setSearch] = useState("");
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [results, setResults] = useState<UserProfile[]>([]);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const user = auth.currentUser;
-    setCurrentUser(user?.uid || null);
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
+        return;
+      }
 
-    if (user) {
-      const q = query(
+      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (userDoc.exists()) {
+        setUser(userDoc.data() as UserProfile);
+      }
+
+      const sentReqQuery = query(
         collection(db, "friendRequests"),
-        where("fromUid", "==", user.uid),
+        where("fromUid", "==", firebaseUser.uid),
         where("status", "==", "pending")
       );
-      getDocs(q).then((snapshot) => {
-        const reqs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FriendRequest));
-        setRequests(reqs);
-      });
-    }
+      const sentReqDocs = await getDocs(sentReqQuery);
+      setSentRequests(
+        sentReqDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() } as FriendRequest))
+      );
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleSearch = async () => {
@@ -34,67 +54,92 @@ export default function SearchPage() {
       return;
     }
 
-    const usersCol = collection(db, "users");
-    const snapshot = await getDocs(usersCol);
-    const allUsers = snapshot.docs.map(doc => doc.data() as UserProfile);
+    const q = query(collection(db, "users"));
+    const snapshot = await getDocs(q);
+    const users = snapshot.docs
+      .map((doc) => doc.data() as UserProfile)
+      .filter((u) => {
+        const term = search.toLowerCase();
+        return (
+          u.username.toLowerCase().includes(term) ||
+          u.displayName.toLowerCase().includes(term)
+        );
+      })
+      .filter((u) => u.uid !== user?.uid);
 
-    const searchLower = search.toLowerCase();
-
-    const filtered = allUsers.filter(user => {
-      const displayName = user.displayName.toLowerCase();
-      const username = user.username.toLowerCase();
-      const email = (user.email ?? "").toLowerCase();
-      return (
-        displayName.includes(searchLower) ||
-        username.includes(searchLower) ||
-        email.includes(searchLower)
-      ) && user.uid !== currentUser;
-    });
-
-    setResults(filtered);
+    setResults(users);
   };
 
-  const sendFriendRequest = async (toUid: string) => {
-    if (!currentUser) return;
+  const sendRequest = async (toUser: UserProfile) => {
+    if (!user) return;
 
-    await addDoc(collection(db, "friendRequests"), {
-      fromUid: currentUser,
-      toUid,
+    const newRequestId = doc(collection(db, "friendRequests")).id;
+
+    await setDoc(doc(db, "friendRequests", newRequestId), {
+      id: newRequestId,
+      fromUid: user.uid,
+      fromName: user.displayName,
+      toUid: toUser.uid,
+      toName: toUser.displayName,
       status: "pending",
-      sentAt: serverTimestamp(),
+      sentAt: new Date(),
     });
 
-    // İstek gönderilen kullanıcıyı state'e ekle
-    setRequests(prev => [...prev, { id: "temp", fromUid: currentUser, toUid, status: "pending", sentAt: Timestamp.now() } as FriendRequest]);
+    setSentRequests((prev) => [
+      ...prev,
+      {
+        id: newRequestId,
+        fromUid: user.uid,
+        fromName: user.displayName,
+        toUid: toUser.uid,
+        toName: toUser.displayName,
+        status: "pending",
+        sentAt: serverTimestamp() as Timestamp
+      },
+    ]);
   };
 
-  const isRequestPending = (uid: string) => {
-    return requests.some(r => r.toUid === uid && r.status === "pending");
+  const cancelRequest = async (requestId: string) => {
+    await deleteDoc(doc(db, "friendRequests", requestId));
+    setSentRequests((prev) => prev.filter((r) => r.id !== requestId));
+  };
+
+  const toggleRequest = (toUser: UserProfile) => {
+    const existingReq = sentRequests.find((r) => r.toUid === toUser.uid);
+    if (existingReq) {
+      cancelRequest(existingReq.id);
+    } else {
+      sendRequest(toUser);
+    }
   };
 
   return (
-    <div className="search-page">
-      <h1>Kullanıcı Ara</h1>
+    <div>
+      <h1>Arkadaş Ara</h1>
       <input
         type="text"
-        placeholder="Kullanıcı adı ara..."
+        placeholder="Kullanıcı adı veya isim ile ara"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
       />
       <button onClick={handleSearch}>Ara</button>
 
       <ul>
-        {results.map(user => (
-          <li key={user.uid}>
-            {user.displayName} (@{user.username})
-            {isRequestPending(user.uid) ? (
-              <button disabled>İstek Gönderildi</button>
-            ) : (
-              <button onClick={() => sendFriendRequest(user.uid)}>İstek Gönder</button>
-            )}
-          </li>
-        ))}
+        {results.map((user) => {
+          const isRequested = sentRequests.some((r) => r.toUid === user.uid);
+
+          return (
+            <li key={user.uid}>
+              {user.displayName} (@{user.username})
+              <button
+                className={`friend-button ${isRequested ? "sent" : ""}`}
+                onClick={() => toggleRequest(user)}
+              >
+                {isRequested ? "İstek Gönderildi (Geri Çek)" : "İstek Gönder"}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
