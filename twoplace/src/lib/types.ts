@@ -7,7 +7,7 @@ export type UserProfile = {
   displayName: string
   photoURL?: string
   createdAt: Timestamp
-  friends?: Friend[] // Optional, if you want to store friends directly in the profile
+  friends?: { [uid: string]: true } // sadece UID'leri tutan bir map
 }
 
 export type FriendRequest = {
@@ -23,8 +23,9 @@ export type FriendRequest = {
 export type CallRecord = {
   id: string
   callerUid: string
-  receiverUid: string
+  calleeUid: string
   startedAt: Timestamp
+  accepted: boolean
   endedAt?: Timestamp
   wasAutoEnded?: boolean
   sleepTimerMinutes?: number // if defined, call ends after X minutes
@@ -39,8 +40,14 @@ export type SearchResult = {
   requestPending: boolean
 }
 
-export type Friend = {
-  userId: string;
-  displayName: string;
-  status: "pending" | "accepted";
-};
+// export type Friend = {
+//   uid: string;
+//   displayName: string;
+//   status: "pending" | "accepted";
+// };
+
+
+
+
+
+

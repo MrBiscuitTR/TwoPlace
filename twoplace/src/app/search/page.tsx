@@ -15,6 +15,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/types";
+import Image from "next/image";
 
 export default function SearchPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -34,6 +35,7 @@ export default function SearchPage() {
         setUser(userDoc.data() as UserProfile);
       }
 
+      // Gönderilmiş bekleyen istekleri çek
       const sentReqQuery = query(
         collection(db, "friendRequests"),
         where("fromUid", "==", firebaseUser.uid),
@@ -94,7 +96,7 @@ export default function SearchPage() {
         toUid: toUser.uid,
         toName: toUser.displayName,
         status: "pending",
-        sentAt: serverTimestamp() as Timestamp
+        sentAt: serverTimestamp() as Timestamp,
       },
     ]);
   };
@@ -114,33 +116,98 @@ export default function SearchPage() {
   };
 
   return (
-    <div>
+    <div style={{ padding: "1rem" }}>
       <h1>Arkadaş Ara</h1>
       <input
         type="text"
         placeholder="Kullanıcı adı veya isim ile ara"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "0.5rem",
+          marginBottom: "1rem",
+          borderRadius: 6,
+          border: "1px solid #ccc",
+        }}
       />
-      <button onClick={handleSearch}>Ara</button>
+      <button
+        onClick={handleSearch}
+        style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+      >
+        Ara
+      </button>
 
-      <ul>
-        {results.map((user) => {
-          const isRequested = sentRequests.some((r) => r.toUid === user.uid);
+      {results.length === 0 ? (
+        <p>Sonuç bulunamadı.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {results.map((resultUser) => {
+            const isRequested = sentRequests.some((r) => r.toUid === resultUser.uid);
+            // friends objesi object olduğundan Object.keys ile kontrol
+            const isFriend = Object.keys(resultUser.friends || {}).some(
+              (uid) => uid === user?.uid
+            );
 
-          return (
-            <li key={user.uid}>
-              {user.displayName} (@{user.username})
-              <button
-                className={`friend-button ${isRequested ? "sent" : ""}`}
-                onClick={() => toggleRequest(user)}
+            return (
+              <div
+                key={resultUser.uid}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0.5rem 1rem",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  gap: 16,
+                }}
               >
-                {isRequested ? "İstek Gönderildi (Geri Çek)" : "İstek Gönder"}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                {resultUser.photoURL ? (
+                  <Image
+                    src={resultUser.photoURL}
+                    alt={resultUser.displayName}
+                    width={50}
+                    height={50}
+                    style={{ borderRadius: "50%" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: "50%",
+                      backgroundColor: "#ccc",
+                    }}
+                  />
+                )}
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ fontWeight: "600" }}>{resultUser.displayName}</div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    @{resultUser.username}
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleRequest(resultUser)}
+                  style={{
+                    padding: "0.3rem 0.7rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: isRequested ? "#ccc" : "#4caf50",
+                    color: isRequested ? "#666" : "white",
+                    border: "none",
+                  }}
+                  disabled={isFriend}
+                >
+                  {isFriend
+                    ? "Zaten Arkadaşsınız"
+                    : isRequested
+                    ? "İstek Gönderildi (Geri Çek)"
+                    : "İstek Gönder"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

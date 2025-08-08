@@ -6,108 +6,150 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
+  onSnapshot,
   query,
+  updateDoc,
   where,
-  deleteDoc,
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
-import type { UserProfile, FriendRequest, CallRecord, Friend } from "@/lib/types";
-import { acceptRequest, rejectRequest , removeFriend, fetchFriendProfiles} from "../search/friends";
-import router from "next/router";
+import type { UserProfile, FriendRequest, CallRecord } from "@/lib/types";
+import {
+  acceptRequest,
+  rejectRequest,
+  removeFriend,
+  fetchFriendProfiles,
+} from "../search/friends";
+
 import { redirect } from "next/navigation";
+import Image from "next/image";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<{ [uid: string]: true }>({});
   const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
 
-
-  //fetch friend profiles, and also edit the friends section below to show their names with @s and photos or a gray icon of no photo url.
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        setUser(null);
-        setFriends([]);
-        setRequests([]);
-        setCallHistory([]);
         redirect("/register");
         return;
       }
 
-      // Kullanıcı profilini çek
+      // İlk kullanıcı bilgisi çekimi (one-time)
       const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
       if (!userDoc.exists()) return;
-
       const userData = userDoc.data() as UserProfile;
       setUser(userData);
+      setFriends(userData.friends || {});
 
-      // Friends listesi (varsayılan boş dizi)
-      setFriends(userData.friends || []);
+      // Arkadaş profillerini fetch et
+      const profiles = await fetchFriendProfiles(Object.keys(userData.friends || {}));
+      setFriendProfiles(profiles);
+    });
 
-      // Gelen arkadaş isteklerini çek (toUid == kullanıcı ve status pending)
-      const reqQuery = query(
-        collection(db, "friendRequests"),
-        where("toUid", "==", firebaseUser.uid),
-        where("status", "==", "pending")
-      );
-      const reqDocs = await getDocs(reqQuery);
-      const friendReqs = reqDocs.docs.map(
+    return () => unsubscribeAuth();
+  }, []);
+
+//   notif permission
+    useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+        if (Notification.permission === "default") {
+        Notification.requestPermission().catch(console.error);
+        }
+    }
+    }, []); // sadece bir kez
+
+  // user değiştiğinde gerçek zamanlı dinleyicileri başlat
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // Gelen arkadaşlık istekleri (pending)
+    const reqQuery = query(
+      collection(db, "friendRequests"),
+      where("toUid", "==", user.uid),
+      where("status", "==", "pending")
+    );
+
+    const unsubscribeRequests = onSnapshot(reqQuery, (snapshot) => {
+      const friendReqs = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as FriendRequest)
       );
       setRequests(friendReqs);
+    });
 
-      // Çağrı geçmişi (callerUid == kullanıcı)
-      const callQuery = query(
-        collection(db, "calls"),
-        where("callerUid", "==", firebaseUser.uid)
-      );
-      const callDocs = await getDocs(callQuery);
-      const calls = callDocs.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as CallRecord)
-      );
+    // Kullanıcının profilini (arkadaş listesi için) gerçek zamanlı dinle
+    const userDocRef = doc(db, "users", user.uid);
+    const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+      if (!docSnap.exists()) return;
+      const updatedUser = docSnap.data() as UserProfile;
+      setUser(updatedUser);
+      setFriends(updatedUser.friends || {});
+      // Arkadaş profilleri güncelle
+      fetchFriendProfiles(Object.keys(updatedUser.friends || {})).then(setFriendProfiles);
+    });
+
+    // Çağrı geçmişini dinle
+    const callQuery = query(
+      collection(db, "calls"),
+      where("callerUid", "==", user.uid)  // Buradaki alan ismi Firestore'daki gerçek isimle aynı olmalı!
+    );
+    const unsubscribeCalls = onSnapshot(callQuery, (snapshot) => {
+      const calls = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as CallRecord));
       setCallHistory(calls);
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      unsubscribeRequests();
+      unsubscribeUser();
+      unsubscribeCalls();
+    };
+  }, [user?.uid]);
 
   async function handleAcceptRequest(request: FriendRequest) {
     if (!user) return;
-    await acceptRequest(request);
 
-    // İstek onaylandıktan sonra güncel kullanıcıyı ve arkadaş listesini çek
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if (userDoc.exists()) {
-      const updatedUser = userDoc.data() as UserProfile;
-      setUser(updatedUser);
-      setFriends(updatedUser.friends || []);
+    try {
+      await acceptRequest(request); // Arkadaşlık ekleme + request güncelleme
+
+      // İstek artık realtime dinleme ile otomatik güncelleneceği için manuel çıkarma yapmaya gerek yok
+      // setRequests((prev) => prev.filter((r) => r.id !== request.id));
+    } catch (error) {
+      console.error("Arkadaşlık kabul edilirken hata oluştu:", error);
+
+      try {
+        await updateDoc(doc(db, "friendRequests", request.id), {
+          status: "pending",
+        });
+      } catch (revertError) {
+        console.error("Status 'pending' olarak geri alınırken hata:", revertError);
+      }
+
+      alert("Arkadaşlık isteği kabul edilemedi. Lütfen tekrar deneyin.");
     }
-
-    // İstek listesinden kaldır
-    setRequests((prev) => prev.filter((r) => r.id !== request.id));
   }
 
   async function handleRejectRequest(requestId: string) {
     await rejectRequest(requestId);
-    setRequests((prev) => prev.filter((r) => r.id !== requestId));
+    // İstek reddedilince realtime dinleme bunu otomatik güncelleyecek
   }
 
   async function handleRemoveFriend(friendUid: string) {
     if (!user) return;
     await removeFriend(user.uid, friendUid);
 
-    // Güncel arkadaş listesini tekrar çek
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if (userDoc.exists()) {
-      const updatedUser = userDoc.data() as UserProfile;
-      setUser(updatedUser);
-      setFriends(updatedUser.friends || []);
-    }
+    // Kullanıcı profilini güncellemek için artık onSnapshot otomatik yapacak, manuel çekme zorunlu değil
+    // Ancak istersen aşağıdaki satırı bırakabilirsin:
+    // const userDoc = await getDoc(doc(db, "users", user.uid));
+    // if (userDoc.exists()) {
+    //   const updatedUser = userDoc.data() as UserProfile;
+    //   setUser(updatedUser);
+    //   setFriends(updatedUser.friends || {});
+    //   const profiles = await fetchFriendProfiles(Object.keys(updatedUser.friends || {}));
+    //   setFriendProfiles(profiles);
+    // }
   }
 
   return (
@@ -116,44 +158,116 @@ export default function DashboardPage() {
 
       <section style={{ marginTop: "2rem" }}>
         <h2>Arkadaşlar</h2>
-        {friends.length === 0 ? (
+        {friendProfiles.length === 0 ? (
           <p>Henüz arkadaşınız yok.</p>
         ) : (
-          <ul>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
             {friendProfiles.map((friend) => (
-              <li key={friend.uid}>
-                {friend.displayName}{" "}
+              <div
+                key={friend.uid}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0.5rem 1rem",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  gap: 16,
+                }}
+              >
+                {friend.photoURL ? (
+                  <Image
+                    src={friend.photoURL}
+                    alt={friend.displayName}
+                    width={50}
+                    height={50}
+                    style={{ borderRadius: "50%" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: "50%",
+                      backgroundColor: "rgba(0, 0, 0, 0.8)",
+                    }}
+                  />
+                )}
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ fontWeight: "600" }}>{friend.displayName}</div>
+                  <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                    @{friend.displayName}
+                  </div>
+                </div>
                 <button
-                  style={{ marginLeft: "1rem" }}
                   onClick={() => handleRemoveFriend(friend.uid)}
+                  style={{
+                    backgroundColor: "#f44336",
+                    color: "white",
+                    border: "none",
+                    padding: "0.3rem 0.7rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
                 >
                   Arkadaşlıktan Çıkar
                 </button>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
       <section style={{ marginTop: "2rem" }}>
         <h2>Gelen Arkadaş İstekleri</h2>
         {requests.length === 0 && <p>Bekleyen istek yok.</p>}
-        <ul>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           {requests.map((req) => (
-            <li key={req.id} style={{ marginBottom: "0.5rem" }}>
-              <span>
-                {req.fromName} (@{req.fromUid})
-              </span>
-              <button
-                onClick={() => handleAcceptRequest(req)}
-                style={{ marginLeft: "1rem", marginRight: "0.5rem" }}
-              >
-                Onayla
-              </button>
-              <button onClick={() => handleRejectRequest(req.id)}>Reddet</button>
-            </li>
+            <div
+              key={req.id}
+              style={{
+                border: "1px solid #ccc",
+                padding: "1rem",
+                borderRadius: 8,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <strong>{req.fromName}</strong> (@{req.fromUid})
+              </div>
+              <div>
+                <button
+                  onClick={() => handleAcceptRequest(req)}
+                  style={{
+                    marginRight: "0.5rem",
+                    backgroundColor: "#4caf50",
+                    color: "white",
+                    border: "none",
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  Onayla
+                </button>
+                <button
+                  onClick={() => handleRejectRequest(req.id)}
+                  style={{
+                    backgroundColor: "#f44336",
+                    color: "white",
+                    border: "none",
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  Reddet
+                </button>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       </section>
 
       <section style={{ marginTop: "2rem" }}>
@@ -161,16 +275,14 @@ export default function DashboardPage() {
         {callHistory.length === 0 && <p>Henüz çağrı geçmişiniz yok.</p>}
         <ul>
           {callHistory.map((call) => (
-            <li key={call.id}>
+            <li className="callhistory-widget" key={call.id}>
               <div>
-                <strong>Aranan:</strong> {call.receiverUid}
+                <strong>Aranan:</strong> {call.calleeUid}
                 <br />
-                <small>
-                  Başlangıç: {call.startedAt.toDate().toLocaleString()}
-                </small>
+                <small>Başlangıç : {call.startedAt?.toDate().toLocaleString()}</small>
                 <br />
                 {call.endedAt && (
-                  <small>Bitiş: {call.endedAt.toDate().toLocaleString()}</small>
+                  <small>Bitiş : {call.endedAt?.toDate().toLocaleString()}</small>
                 )}
                 {call.wasAutoEnded && <div>Otomatik Sonlandı</div>}
                 {call.sleepTimerMinutes && (

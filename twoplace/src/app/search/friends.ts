@@ -1,14 +1,17 @@
+//  lin/friends.ts
 import { db } from "@/lib/firebase";
-import { collection, deleteDoc, doc, getDoc, setDoc, serverTimestamp, updateDoc, getDocs } from "firebase/firestore";
-import { Friend, FriendRequest } from "@/lib/types";
-import { getAuth } from "firebase/auth";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+import { FriendRequest, UserProfile } from "@/lib/types";
 
-export type FriendProfile = {
-  userID: string;
-  displayName: string;
-  photoURL?: string;
-};
-
+// Arkadaşlık isteği gönder / geri çek
 export async function toggleFriendRequest(
   fromUid: string,
   fromName: string,
@@ -16,14 +19,11 @@ export async function toggleFriendRequest(
   toName: string
 ) {
   const requestRef = doc(db, "friendRequests", `${fromUid}_${toUid}`);
-
   const docSnapshot = await getDoc(requestRef);
 
   if (docSnapshot.exists()) {
-    // İstek varsa sil (geri çek)
     await deleteDoc(requestRef);
   } else {
-    // Yeni istek oluştur
     await setDoc(requestRef, {
       fromUid,
       fromName,
@@ -35,49 +35,45 @@ export async function toggleFriendRequest(
   }
 }
 
+// Arkadaşlık isteği reddet
 export async function rejectRequest(requestId: string) {
   await deleteDoc(doc(db, "friendRequests", requestId));
 }
 
+// Arkadaşlık isteği kabul et ve iki kullanıcıya birbirini ekle
 export async function acceptRequest(request: FriendRequest) {
-  const { id, fromUid, fromName, toUid, toName } = request;
+  const { id, fromUid, toUid } = request;
 
-  // 1. İsteği "accepted" yap
   await updateDoc(doc(db, "friendRequests", id), {
     status: "accepted",
   });
 
-  // 2. Her iki kullanıcının friends listesine diğerini ekle
   const fromUserRef = doc(db, "users", fromUid);
   const toUserRef = doc(db, "users", toUid);
 
-  // fromUser friends array'ine toUser ekle
   const fromUserDoc = await getDoc(fromUserRef);
-  const fromUserData = fromUserDoc.data();
-
-  const newFromFriends = [
-    ...(fromUserData?.friends || []),
-    { uid: toUid, displayName: toName },
-  ];
-
-  await updateDoc(fromUserRef, {
-    friends: newFromFriends,
-  });
-
-  // toUser friends array'ine fromUser ekle
   const toUserDoc = await getDoc(toUserRef);
-  const toUserData = toUserDoc.data();
 
-  const newToFriends = [
-    ...(toUserData?.friends || []),
-    { uid: fromUid, displayName: fromName },
-  ];
+  if (!fromUserDoc.exists() || !toUserDoc.exists()) return;
 
-  await updateDoc(toUserRef, {
-    friends: newToFriends,
-  });
+  const fromUserData = fromUserDoc.data() as UserProfile;
+  const toUserData = toUserDoc.data() as UserProfile;
+
+  // Map yapısı: uid: true
+  const updatedFromFriends = {
+    ...(fromUserData.friends || {}),
+    [toUid]: true,
+  };
+  const updatedToFriends = {
+    ...(toUserData.friends || {}),
+    [fromUid]: true,
+  };
+
+  await updateDoc(fromUserRef, { friends: updatedFromFriends });
+  await updateDoc(toUserRef, { friends: updatedToFriends });
 }
 
+// Arkadaşı çıkar (iki taraftan da)
 export async function removeFriend(userUid: string, friendUid: string) {
   const userRef = doc(db, "users", userUid);
   const friendRef = doc(db, "users", friendUid);
@@ -87,22 +83,33 @@ export async function removeFriend(userUid: string, friendUid: string) {
 
   if (!userSnap.exists() || !friendSnap.exists()) return;
 
-  const userData = userSnap.data();
-  const friendData = friendSnap.data();
+  const userData = userSnap.data() as UserProfile;
+  const friendData = friendSnap.data() as UserProfile;
 
-  const newUserFriends = (userData?.friends || []).filter(
-    (f: Friend) => f.userId !== friendUid
-  );
+  const updatedUserFriends = { ...(userData.friends || {}) };
+  const updatedFriendFriends = { ...(friendData.friends || {}) };
 
-  const newFriendFriends = (friendData?.friends || []).filter(
-    (f: Friend) => f.userId !== userUid
-  );
+  delete updatedUserFriends[friendUid];
+  delete updatedFriendFriends[userUid];
 
-  await updateDoc(userRef, { friends: newUserFriends });
-  await updateDoc(friendRef, { friends: newFriendFriends });
+  await updateDoc(userRef, { friends: updatedUserFriends });
+  await updateDoc(friendRef, { friends: updatedFriendFriends });
+
+  // Arkadaşlık isteklerini de sil (varsa)
+  const requestId1 = `${userUid}_${friendUid}`;
+  const requestId2 = `${friendUid}_${userUid}`;
+
+  await Promise.all([
+    deleteDoc(doc(db, "friendRequests", requestId1)).catch(() => {}),
+    deleteDoc(doc(db, "friendRequests", requestId2)).catch(() => {}),
+  ]);
 }
 
-export async function getFriendRequestStatus(fromUid: string, toUid: string): Promise<FriendRequest | null> {
+// Gönderilen istek durumu kontrolü
+export async function getFriendRequestStatus(
+  fromUid: string,
+  toUid: string
+): Promise<FriendRequest | null> {
   const requestRef = doc(db, "friendRequests", `${fromUid}_${toUid}`);
   const snap = await getDoc(requestRef);
 
@@ -113,29 +120,17 @@ export async function getFriendRequestStatus(fromUid: string, toUid: string): Pr
   }
 }
 
+// Arkadaş profillerini UID map'inden çek
+export async function fetchFriendProfiles(friendUIDs: string[]): Promise<UserProfile[]> {
+  const profiles: UserProfile[] = [];
 
-export const fetchFriendProfiles = async (): Promise<FriendProfile[]> => {
-  const auth = getAuth();
-  const currentUser = auth.currentUser;
-
-  if (!currentUser) {
-    console.error("No current user");
-    return [];
+  for (const uid of friendUIDs) {
+    const docRef = doc(db, "users", uid);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      profiles.push(docSnap.data() as UserProfile);
+    }
   }
 
-  const friendsRef = collection(db, "users", currentUser.uid, "friends");
-
-  const snapshot = await getDocs(friendsRef);
-  const friends: FriendProfile[] = [];
-
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    friends.push({
-      userID: data.userID,
-      displayName: data.displayName,
-      photoURL: data.photoURL || undefined,
-    });
-  });
-
-  return friends;
-};
+  return profiles;
+}
