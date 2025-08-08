@@ -1,6 +1,14 @@
 import { db } from "@/lib/firebase";
-import { collection, deleteDoc, doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { FriendRequest } from "@/lib/types";
+import { collection, deleteDoc, doc, getDoc, setDoc, serverTimestamp, updateDoc, getDocs } from "firebase/firestore";
+import { Friend, FriendRequest } from "@/lib/types";
+import { getAuth } from "firebase/auth";
+
+export type FriendProfile = {
+  userID: string;
+  displayName: string;
+  photoURL?: string;
+};
+
 export async function toggleFriendRequest(
   fromUid: string,
   fromName: string,
@@ -70,6 +78,30 @@ export async function acceptRequest(request: FriendRequest) {
   });
 }
 
+export async function removeFriend(userUid: string, friendUid: string) {
+  const userRef = doc(db, "users", userUid);
+  const friendRef = doc(db, "users", friendUid);
+
+  const userSnap = await getDoc(userRef);
+  const friendSnap = await getDoc(friendRef);
+
+  if (!userSnap.exists() || !friendSnap.exists()) return;
+
+  const userData = userSnap.data();
+  const friendData = friendSnap.data();
+
+  const newUserFriends = (userData?.friends || []).filter(
+    (f: Friend) => f.userId !== friendUid
+  );
+
+  const newFriendFriends = (friendData?.friends || []).filter(
+    (f: Friend) => f.userId !== userUid
+  );
+
+  await updateDoc(userRef, { friends: newUserFriends });
+  await updateDoc(friendRef, { friends: newFriendFriends });
+}
+
 export async function getFriendRequestStatus(fromUid: string, toUid: string): Promise<FriendRequest | null> {
   const requestRef = doc(db, "friendRequests", `${fromUid}_${toUid}`);
   const snap = await getDoc(requestRef);
@@ -80,3 +112,30 @@ export async function getFriendRequestStatus(fromUid: string, toUid: string): Pr
     return null;
   }
 }
+
+
+export const fetchFriendProfiles = async (): Promise<FriendProfile[]> => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    console.error("No current user");
+    return [];
+  }
+
+  const friendsRef = collection(db, "users", currentUser.uid, "friends");
+
+  const snapshot = await getDocs(friendsRef);
+  const friends: FriendProfile[] = [];
+
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    friends.push({
+      userID: data.userID,
+      displayName: data.displayName,
+      photoURL: data.photoURL || undefined,
+    });
+  });
+
+  return friends;
+};

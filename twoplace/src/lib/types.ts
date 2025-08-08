@@ -41,5 +41,6 @@ export type SearchResult = {
 
 export type Friend = {
   userId: string;
+  displayName: string;
   status: "pending" | "accepted";
 };
