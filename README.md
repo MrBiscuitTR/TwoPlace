@@ -24,8 +24,8 @@ All source code, structure, and concept were conceived before public publication
 - 🌙 **Night glow frame**: emits soft white glow around video to illuminate the room at night
 - 💤 **Sleep timer**: ends call after a set period
 - ☀️ **Morning auto-reconnect**: notifies/reconnects at a preset time
-- 🧑‍🤝‍🧑 **Private**: Only two pre-authorized users can access
-- 📱 **Progressive Web App (PWA)**: Installable on iPhone/iPad without App Store
+- 🧑‍🤝‍🧑 **Private**: Only two pre-authorized users can access (demo) -> Firebase Authentication - User accounts, private calls, notifications...
+- 📱 **Progressive Web App (PWA)**: Installable on iPhone/iPad without App Store -> maybe an app later (swift? electronjs?)
 
 ---
 
