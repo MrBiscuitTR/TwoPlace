@@ -14,7 +14,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { CallRecord, UserProfile } from "@/lib/types";
-import LightFrame from "@/components/lightFrame"; // opsiyonel ışıklı çerçeve
+import LightFrame from "@/components/lightFrame";
 
 const FPS_OPTIONS = [15, 24, 30];
 const RESOLUTION_OPTIONS = [
@@ -25,43 +25,41 @@ const RESOLUTION_OPTIONS = [
   { label: "720p HD (1280x720)", width: 1280, height: 720, bitrate: 1500 },
 ];
 
-// Helper: Veri kullanımı tahmini
-function estimateDataUsage(bitrateKbps: number, durationSeconds: number) {
-  const MBperSecond = bitrateKbps / 8 / 1024;
-  return MBperSecond * durationSeconds;
-}
+// Gerçek veri kullanımı hesaplaması için MediaStreamTrackStats tipi (minimal)
+type StatsReport = {
+  bytesSent?: number;
+  bytesReceived?: number;
+};
 
 export default function CallPage() {
   const params = useParams();
   const router = useRouter();
   const callId = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Kullanıcı ve çağrı bilgileri
   const [user, setUser] = useState<UserProfile | null>(null);
   const [callData, setCallData] = useState<CallRecord | null>(null);
   const [callStatus, setCallStatus] = useState<"ringing" | "accepted" | "ended">("ringing");
   const [authorized, setAuthorized] = useState(false);
 
-  // Medya element referansları
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  // Medya ayarları
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [fps, setFps] = useState(24);
-  const [resolution, setResolution] = useState(RESOLUTION_OPTIONS[2]); // default 360p
+  const [resolution, setResolution] = useState(RESOLUTION_OPTIONS[2]);
 
-  // Çağrı süresi
   const [callDuration, setCallDuration] = useState(0);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Çağrı kabul durumu
+  const [autoEndTimer, setAutoEndTimer] = useState(5 * 60); // Örnek 5 dakika otomatik çağrı sonu
+  const autoEndIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const callAccepted = callStatus === "accepted";
 
-  // --- Kullanıcı doğrulama ve çağrı verisi yükleme ---
+  // --- Kullanıcı doğrulama ve çağrı bilgisi ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -80,6 +78,7 @@ export default function CallPage() {
         router.push("/not-found");
         return;
       }
+
       const callDoc = await getDoc(doc(db, "calls", callId));
       if (!callDoc.exists()) {
         router.push("/not-found");
@@ -87,7 +86,6 @@ export default function CallPage() {
       }
 
       const callInfo = callDoc.data() as CallRecord;
-      // Kullanıcı çağrı katılımcısı mı?
       if (firebaseUser.uid !== callInfo.callerUid && firebaseUser.uid !== callInfo.calleeUid) {
         router.push("/unauthorized");
         return;
@@ -95,13 +93,9 @@ export default function CallPage() {
 
       setCallData({ ...callInfo, id: callDoc.id });
 
-      if (!callInfo.accepted) {
-        setCallStatus("ringing");
-      } else if (callInfo.endedAt) {
-        setCallStatus("ended");
-      } else {
-        setCallStatus("accepted");
-      }
+      if (!callInfo.accepted) setCallStatus("ringing");
+      else if (callInfo.endedAt) setCallStatus("ended");
+      else setCallStatus("accepted");
 
       setAuthorized(true);
     });
@@ -109,7 +103,25 @@ export default function CallPage() {
     return () => unsubscribe();
   }, [callId, router]);
 
-  // --- WebRTC ve signaling setup ---
+  // --- Çağrı bitişini sayfa kapandığında / reload olduğunda otomatik yap ---
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (callData && !callData.endedAt) {
+        await updateDoc(doc(db, "calls", callData.id), {
+          endedAt: serverTimestamp(),
+          wasAutoEnded: true,
+        });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [callData]);
+
+  // --- WebRTC & Signaling ---
   useEffect(() => {
     if (!callAccepted || !user || !callData) return;
 
@@ -118,9 +130,14 @@ export default function CallPage() {
     });
     peerConnectionRef.current = pc;
 
-    // Local medya stream al
+    // Local stream setup fonksiyonu
     async function startLocalStream() {
       try {
+        if (localStreamRef.current) {
+          // Önceki stream varsa durdur
+          localStreamRef.current.getTracks().forEach((t) => t.stop());
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: videoEnabled
             ? {
@@ -131,13 +148,11 @@ export default function CallPage() {
             : false,
           audio: audioEnabled,
         });
+
         localStreamRef.current = stream;
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-        // Stream parçalarını RTCPeerConnection'a ekle
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       } catch (err) {
         console.error("Media stream alınırken hata:", err);
@@ -146,23 +161,20 @@ export default function CallPage() {
 
     startLocalStream();
 
-    // Remote stream gösterme
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
     };
 
-    // Firestore dokümanları referansları
+    // Firestore signaling koleksiyonları
     const callDocRef = doc(db, "calls", callData.id);
     const callerCandidatesCollection = collection(callDocRef, "callerCandidates");
     const calleeCandidatesCollection = collection(callDocRef, "calleeCandidates");
 
-    // ICE candidate oluşunca Firestore'a ekle
+    // ICE candidate'ları Firestore'a ekle
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         const candidate = event.candidate.toJSON();
-        if (user && callData && user.uid === callData.callerUid) {
+        if (user && user.uid === callData.callerUid) {
           addDoc(callerCandidatesCollection, candidate);
         } else {
           addDoc(calleeCandidatesCollection, candidate);
@@ -170,16 +182,15 @@ export default function CallPage() {
       }
     };
 
-    // Tek seferlik signaling fonksiyonu
+    // Signaling işleyişi
     async function signaling() {
       if (user && callData && user.uid === callData.callerUid) {
-        // Caller: Offer oluştur ve Firestore'a yaz
+        // Caller
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
         await updateDoc(callDocRef, { offer: { type: offer.type, sdp: offer.sdp } });
 
-        // Answer ve callee ICE candidate'ları dinle
         onSnapshot(callDocRef, (snapshot) => {
           const data = snapshot.data();
           if (data?.answer && !pc.currentRemoteDescription) {
@@ -196,8 +207,8 @@ export default function CallPage() {
             }
           });
         });
-      } else {
-        // Callee: Offer'ı Firestore'dan al, Answer oluştur, Firestore'a yaz
+      } else if (user) {
+        // Callee
         const callSnapshot = await getDoc(callDocRef);
         const data = callSnapshot.data();
 
@@ -226,14 +237,52 @@ export default function CallPage() {
 
     signaling();
 
-    // Cleanup
     return () => {
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((t) => t.stop());
+      // Çağrı kapatılırken gerçek veri kullanımını hesapla ve Firestore'a yaz
+      async function cleanup() {
+        if (!peerConnectionRef.current) return;
+
+        // WebRTC bağlantısını kapat
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+
+        // Local stream durdur
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((t) => t.stop());
+          localStreamRef.current = null;
+        }
+
+        // Veri kullanımı topla
+        let totalBytesSent = 0;
+        let totalBytesReceived = 0;
+
+        try {
+          const stats = await peerConnectionRef.current!.getStats(); // ! koydum çünkü burada kesinlikle var gibi
+          stats.forEach((report) => {
+            if (report.type === "outbound-rtp") {
+              const s = report as StatsReport;
+              if (s.bytesSent) totalBytesSent += s.bytesSent;
+            }
+            if (report.type === "inbound-rtp") {
+              const s = report as StatsReport;
+              if (s.bytesReceived) totalBytesReceived += s.bytesReceived;
+            }
+          });
+        } catch (e) {
+          console.warn("Stat toplanamadı:", e);
+        }
+
+        // Firestore'a yaz
+        if (callData?.id) {
+          await updateDoc(doc(db, "calls", callData.id), {
+            endedAt: serverTimestamp(),
+            bytesSent: totalBytesSent,
+            bytesReceived: totalBytesReceived,
+          });
+        }
       }
-      localStreamRef.current = null;
+
+      cleanup();
     };
   }, [callAccepted, user, callData, videoEnabled, audioEnabled, fps, resolution]);
 
@@ -247,12 +296,20 @@ export default function CallPage() {
 
     durationIntervalRef.current = setInterval(() => {
       setCallDuration((d) => d + 1);
+      setAutoEndTimer((t) => (t > 0 ? t - 1 : 0));
     }, 1000);
 
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
     };
   }, [callStatus]);
+
+  // --- Otomatik çağrı sonlandırma ---
+  useEffect(() => {
+    if (autoEndTimer === 0 && callStatus === "accepted") {
+      handleEndCall();
+    }
+  }, [autoEndTimer, callStatus]);
 
   // --- Çağrı kabul ---
   const handleAcceptCall = async () => {
@@ -296,23 +353,12 @@ export default function CallPage() {
     router.push("/dashboard");
   };
 
-  // Veri kullanımı tahmini
-  const bitrateKbps = resolution.bitrate;
-  const dataPerMinuteMB = estimateDataUsage(bitrateKbps, 60);
-  const dataPerHourMB = dataPerMinuteMB * 60;
-
-  // Süre formatlama (mm:ss)
-  function formatDuration(sec: number) {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  }
-
   if (!authorized) return null;
 
+  // Sayfa / modal UI:
   return (
     <div className="call-container" style={{ padding: 20 }}>
-      {callStatus === "ringing" && (
+      {callStatus === "ringing" && user?.uid === callData?.calleeUid && (
         <div
           className="call-popup"
           role="dialog"
@@ -449,11 +495,8 @@ export default function CallPage() {
             className="data-usage"
             style={{ marginTop: 20, textAlign: "center", fontSize: 14 }}
           >
-            <div>
-              Tahmini veri kullanımı: {dataPerMinuteMB.toFixed(2)} MB/dakika —{" "}
-              {dataPerHourMB.toFixed(2)} MB/saat
-            </div>
-            <div>Çağrı Süresi: {formatDuration(callDuration)}</div>
+            <div>Çağrı Süresi: {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}</div>
+            <div>Otomatik Sonlandırma: {Math.floor(autoEndTimer / 60)}:{(autoEndTimer % 60).toString().padStart(2, "0")}</div>
             <button
               onClick={handleEndCall}
               style={{

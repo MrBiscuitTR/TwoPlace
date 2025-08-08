@@ -23,7 +23,7 @@ const CallIncomingModal: React.FC<CallIncomingModalProps> = ({ callerUid, onAcce
       }
     };
 
-    fetchCallerName();
+    fetchCallerName();  
 
     // Bildirim gönder
     sendNotification({

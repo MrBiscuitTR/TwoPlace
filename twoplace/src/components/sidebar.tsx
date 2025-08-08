@@ -12,6 +12,7 @@ export default function Sidebar() {
     { href: "/search", label: "Search" },
     { href: "/calls", label: "Calls" },
     { href: "/settings", label: "Settings" },
+    { href: "/about", label: "About" },
   ];
   const handleLogout = async () => {
     try {

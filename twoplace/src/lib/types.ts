@@ -26,6 +26,8 @@ export type CallRecord = {
   calleeUid: string
   startedAt: Timestamp
   accepted: boolean
+  bytesSent?: number
+  bytesReceived?: number
   endedAt?: Timestamp
   wasAutoEnded?: boolean
   sleepTimerMinutes?: number // if defined, call ends after X minutes
