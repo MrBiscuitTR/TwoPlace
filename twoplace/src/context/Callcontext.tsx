@@ -37,7 +37,7 @@ type CallContextType = {
   startCall: (calleeUid: string) => Promise<void>;
   acceptCall: (callId: string) => Promise<void>;
   rejectCall: (callId: string) => Promise<void>;
-  endCall: (callId?: string) => Promise<void>;
+  endCall: (callId?: string, bytesSent?: number, bytesReceived?: number ) => Promise<void>;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   setVideoEnabled: (b: boolean) => void;
@@ -216,52 +216,68 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function endCall(callId?: string) {
-  // PeerConnection ve bağlantılı işlemleri temizle
-  try {
-    // Eğer cleanup fonksiyonu varsa çağır (abonelikler, interval temizliği vs.)
-    peerRef.current?._cleanup?.();
+  async function endCall(callId?: string, bytesSent?: number, bytesReceived?: number) {
+    // PeerConnection ve bağlantılı işlemleri temizle
     try {
-      (peerRef.current as PeerWithCleanup)?._cleanup?.();
-    } catch {}
-    
-    // PeerConnection varsa kapat ve referansı temizle
-    if (peerRef.current) {
-      peerRef.current.close();
-      peerRef.current = null;
+      // Eğer cleanup fonksiyonu varsa çağır (abonelikler, interval temizliği vs.)
+      peerRef.current?._cleanup?.();
+      try {
+        (peerRef.current as PeerWithCleanup)?._cleanup?.();
+      } catch { }
+      // PeerConnection varsa kapat ve referansı temizle
+      if (peerRef.current) {
+        peerRef.current.close();
+        peerRef.current = null;
+      }
+    } catch (err) {
+      console.warn("endCall error closing peer connection", err);
     }
-  } catch (err) {
-    console.warn("endCall error closing peer connection", err);
-  }
 
-  // Local media stream (kamera/mikrofon) varsa tüm track'leri durdur ve referansı temizle
-  if (localRef.current) {
-    localRef.current.getTracks().forEach((t) => t.stop());
-    localRef.current = null;
-    setLocalStream(null);
-  }
-
-  // Remote media stream varsa tüm track'leri durdur ve referansı temizle
-  if (remoteRef.current) {
-    remoteRef.current.getTracks().forEach((t) => t.stop());
-    remoteRef.current = null;
-    setRemoteStream(null);
-  }
-
-  // Firestore'daki çağrı dokümanını endedAt ile güncelle (çağrı bitti olarak işaretle)
-  try {
-    if (callId || callData?.id) {
-      const id = callId || callData!.id;
-      await updateDoc(doc(db, "calls", id), { endedAt: serverTimestamp() });
+    // Local media stream'i durdur ve tamamen serbest bırak
+    if (localRef.current) {
+      localRef.current.getTracks().forEach((track) => {
+        track.stop();
+        // Ayrıca track referanslarını ayırmak için track'i stream'den çıkarabilirsin:
+        if (localRef.current?.removeTrack) {
+          localRef.current.removeTrack(track);
+        }
+      });
+      localRef.current = null;
+      setLocalStream(null);
     }
-  } catch (err) {
-    console.warn("endCall error updating Firestore", err);
-  } finally {
-    // UI state güncellemeleri: çağrı durumu ve verisi temizlenir
-    setCallStatus("ended");
-    setCallData(null);
+
+    // Remote media stream'i durdur ve tamamen serbest bırak
+    if (remoteRef.current) {
+      remoteRef.current.getTracks().forEach((track) => {
+        track.stop();
+        if (remoteRef.current?.removeTrack) {
+          remoteRef.current.removeTrack(track);
+        }
+      });
+      remoteRef.current = null;
+      setRemoteStream(null);
+    }
+
+    // Firestore çağrı dokümanını güncelle, burada bytes bilgilerini de ekle
+    try {
+      if (callId || callData?.id) {
+        const id = callId || callData!.id;
+        await updateDoc(doc(db, "calls", id), {
+          endedAt: serverTimestamp(),
+          bytesSent: bytesSent ?? 0,
+          bytesReceived: bytesReceived ?? 0,
+        });
+      }
+    } catch (err) {
+      console.warn("endCall error updating Firestore", err);
+    } finally {
+      setCallStatus("ended");
+      setCallData(null);
+    }
   }
-}
+
+
+
 
 
   // Listen for incoming calls (anywhere in app/layout we can also rely on this)
