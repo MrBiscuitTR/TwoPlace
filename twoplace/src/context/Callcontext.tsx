@@ -243,8 +243,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       });
       localRef.current = null;
-      setLocalStream(null);
     }
+    setLocalStream(null);
 
     // Remote media stream'i durdur ve tamamen serbest bırak
     if (remoteRef.current) {
@@ -255,8 +255,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       });
       remoteRef.current = null;
-      setRemoteStream(null);
     }
+    setRemoteStream(null);
 
     // Firestore çağrı dokümanını güncelle, burada bytes bilgilerini de ekle
     try {
