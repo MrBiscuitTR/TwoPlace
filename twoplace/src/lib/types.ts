@@ -26,6 +26,8 @@ export type CallRecord = {
   calleeUid: string
   startedAt: Timestamp
   accepted: boolean
+  offer?: RTCSessionDescriptionInit
+  answer?: RTCSessionDescriptionInit
   bytesSent?: number
   bytesReceived?: number
   endedAt?: Timestamp

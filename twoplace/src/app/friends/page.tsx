@@ -8,11 +8,12 @@ import type { UserProfile } from "@/lib/types";
 import { fetchFriendProfiles, removeFriend } from "../search/friends";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { createCall } from "@/lib/call";
+import { useCall } from "@/context/Callcontext";
 
 export default function FriendsPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([]);
+  const { startCall } = useCall();
   const router = useRouter();
 
   async function handleRemoveFriend(friendUid: string) {
@@ -28,18 +29,6 @@ export default function FriendsPage() {
       setFriendProfiles((prev) => prev.filter((f) => f.uid !== friendUid));
     }
   }
-
-  const handleStartCall = async (friendUid: string) => {
-    if (!user?.uid) return;
-    const callId = await createCall(user.uid, friendUid);
-    router.push(`/call/${callId}`);
-    setTimeout(async () => {
-        const callDoc = await getDoc(doc(db, 'calls', callId));
-        if (callDoc.exists() && callDoc.data().status === 'ringing') {
-            await updateDoc(doc(db, 'calls', callId), { status: 'missed' });
-        }
-    }, 15000);
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -126,7 +115,7 @@ export default function FriendsPage() {
                     backgroundColor: "#4caf50",
                     color: "white",
                     border: "none",
-                  }} onClick={() => handleStartCall(friend.uid)}>Arama Başlat</button>
+                  }} onClick={() => startCall(friend.uid)}>Arama Başlat</button>
               <button
                 className="remove-friend-button"
                 style={{ marginLeft: "auto", backgroundColor: "#f44336", color: "white", border: "none", padding: "0.3rem 0.7rem", borderRadius: "4px", cursor: "pointer" }}

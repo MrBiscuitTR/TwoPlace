@@ -23,7 +23,7 @@ import {
 
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { createCall } from "@/lib/call";
+import { useCall } from "@/context/Callcontext"; // CallProvider'ı kullanmak için
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
@@ -33,14 +33,13 @@ export default function DashboardPage() {
     const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
-    
+    const { startCall } = useCall();
 
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (!firebaseUser) {
-                redirect("/register");
-                return;
+                redirect("/login");
             }
 
             // İlk kullanıcı bilgisi çekimi (one-time)
@@ -66,18 +65,6 @@ export default function DashboardPage() {
             }
         }
     }, []); // sadece bir kez
-
-    const handleStartCall = async (friendUid: string) => {
-        if (!user?.uid) return;
-        const callId = await createCall(user.uid, friendUid);
-        router.push(`/call/${callId}`);
-        setTimeout(async () => {
-            const callDoc = await getDoc(doc(db, 'calls', callId));
-            if (callDoc.exists() && callDoc.data().status === 'ringing') {
-                await updateDoc(doc(db, 'calls', callId), { status: 'missed' });
-            }
-        }, 15000);
-    };
 
     // user değiştiğinde gerçek zamanlı dinleyicileri başlat
     useEffect(() => {
@@ -153,6 +140,14 @@ export default function DashboardPage() {
         // İstek reddedilince realtime dinleme bunu otomatik güncelleyecek
     }
 
+    function toDate(ts: { toDate?: () => Date; seconds?: number } | number | string | null): Date | null {
+        if (!ts) return null;
+        if (typeof (ts as { toDate?: () => Date }).toDate === "function") return (ts as { toDate: () => Date }).toDate();
+        if (typeof ts === "object" && ts !== null && "seconds" in ts) return new Date((ts as { seconds: number }).seconds * 1000);
+        if (typeof ts === "number" || typeof ts === "string") return new Date(ts);
+        return null;
+    }
+
     async function handleRemoveFriend(friendUid: string) {
         if (!user) return;
         await removeFriend(user.uid, friendUid);
@@ -222,7 +217,7 @@ export default function DashboardPage() {
                                     backgroundColor: "#4caf50",
                                     color: "white",
                                     border: "none",
-                                }} onClick={() => handleStartCall(friend.uid)}>Arama Başlat</button>
+                                }} onClick={() => startCall(friend.uid)}>Arama Başlat</button>
                                 <button
                                     onClick={() => handleRemoveFriend(friend.uid)}
                                     style={{
@@ -304,10 +299,10 @@ export default function DashboardPage() {
                             <div>
                                 <strong>Aranan:</strong> {call.calleeUid}
                                 <br />
-                                <small>Başlangıç : {call.startedAt?.toDate().toLocaleString()}</small>
+                                <small>Başlangıç : {toDate(call.startedAt)?.toLocaleString()}</small>
                                 <br />
                                 {call.endedAt && (
-                                    <small>Bitiş : {call.endedAt?.toDate().toLocaleString()}</small>
+                                    <small>Bitiş : {toDate(call.endedAt)?.toLocaleString()}</small>
                                 )}
                                 {call.wasAutoEnded && <div>Otomatik Sonlandı</div>}
                                 {call.sleepTimerMinutes && (

@@ -1,6 +1,6 @@
 // src/app/calls/page.tsx
 'use client';
-
+// bu çalışmıyor gibi düzelt
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
@@ -50,6 +50,7 @@ export default function CallsPage() {
 
     fetchCalls();
   }, [user]);
+  
 
   const formatBytes = (bytes: number) => (bytes / 1_000_000).toFixed(2) + " MB";
   const formatTime = (timestamp: number) =>

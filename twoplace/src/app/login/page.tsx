@@ -5,6 +5,8 @@ import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, AuthError } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { FirebaseError } from "firebase/app";
+import { create } from "domain";
+import { createUserProfileIfNotExists } from "@/lib/user";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -29,9 +31,17 @@ export default function LoginPage() {
 
     const handleGoogleLogin = async () => {
         try {
-        await signInWithPopup(auth, googleProvider);
-        router.push("/dashboard");
-        console.log("Google ile giriş yapıldı"+ auth.currentUser?.displayName);
+        await signInWithPopup(auth, googleProvider).then((result) => {
+            if (!result.user) throw new Error("User is missing in signInWithPopup result");
+            createUserProfileIfNotExists(result.user).then(() => {
+                console.log("User profile created or already exists.");
+                router.push("/dashboard");
+                console.log("Google ile giriş yapıldı"+ auth.currentUser?.displayName);
+            }).catch((error: unknown) => {
+                console.error("Error creating user profile:", error);
+            });
+        });
+        
         } catch (e : unknown) {
         if (e && typeof e === "object" && "message" in e) {
             setError((e as { message: string }).message);

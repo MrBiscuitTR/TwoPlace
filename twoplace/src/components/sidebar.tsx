@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
+
 // sidebar.tsc component
 export default function Sidebar() {
   const pathname = usePathname();

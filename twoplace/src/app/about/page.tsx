@@ -2,11 +2,12 @@
 
 import React from 'react';
 import Head from 'next/head';
+import "../../app/globals.css"
 
 const About = () => (
   <>
     <Head>
-      <title>About – TwoPlace</title>
+      <title>TwoPlace - About</title>
       <meta name="description" content="Private couple video call app – About Page" />
     </Head>
     <div>
@@ -14,7 +15,6 @@ const About = () => (
         body {
           font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
           line-height: 1.6;
-          max-width: 760px;
           margin: 2rem auto;
           padding: 0 1rem;
           color: #1f1f1f;

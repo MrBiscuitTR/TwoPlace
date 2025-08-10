@@ -9,7 +9,13 @@ export function AuthButton() {
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider()
     const result = await signInWithPopup(auth, provider)
-    await createUserProfileIfNotExists(result.user)
+    if (!result.user) throw new Error("User is missing in signInWithPopup result");
+    await createUserProfileIfNotExists(result.user).then(() => {
+      console.log("User profile created or already exists.")
+    }).catch((error) => {
+      console.error("Error creating user profile:", error)
+    })
+    console.log("Logged in as", result.user.displayName || result.user.email)
   }
 
   const handleLogout = () => {

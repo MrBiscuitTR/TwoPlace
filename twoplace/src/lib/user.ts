@@ -5,8 +5,8 @@ import { User } from "firebase/auth"
 import type { UserProfile } from "./types"
 // lib/user.ts
 export async function createUserProfileIfNotExists(user: User) {
-  const userRef = doc(db, "users", user.uid)
-  const snapshot = await getDoc(userRef)
+  const userRef = doc(db, "users", user.uid);
+  const snapshot = await getDoc(userRef);
 
   if (!snapshot.exists()) {
     const profile: UserProfile = {
@@ -16,8 +16,17 @@ export async function createUserProfileIfNotExists(user: User) {
       displayName: user.displayName || "Anonymous",
       photoURL: user.photoURL || undefined,
       createdAt: serverTimestamp() as Timestamp,
-    }
+    };
 
-    await setDoc(userRef, profile)
+    try {
+      await setDoc(userRef, profile);
+      console.log("User profile created for", user.uid);
+    } catch (error) {
+      console.error("Error creating user profile:", error);
+    }
+  } else {
+    console.log("User profile already exists for", user.uid);
   }
 }
+
+
