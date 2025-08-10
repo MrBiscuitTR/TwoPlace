@@ -115,9 +115,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const newCall: Partial<CallRecord> = {
         callerUid: user.uid,
         calleeUid,
+        participants: [user.uid, calleeUid],
         accepted: false,
         startedAt: serverTimestamp() as Timestamp,
       };
+
       const callRef = await addDoc(collection(db, "calls"), newCall);
 
       // Update local state
@@ -143,7 +145,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // candidate koleksiyonları referansları
       const callDocRef = doc(db, "calls", callRef.id);
       const callerCandidates = collection(callDocRef, "callerCandidates");
-      const calleeCandidates = collection(callDocRef, "calleeCandidates");
+      // const calleeCandidates = collection(callDocRef, "calleeCandidates");
 
       // ICE -> callerCandidates
       pc.onicecandidate = (ev) => {
