@@ -2,7 +2,7 @@
 
 import React , {useEffect, useState}from "react";
 import { CallProvider } from "@/context/Callcontext"; // senin CallProvider dosyanın adı/path'ine göre düzenle
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "@/components/sidebar";
 import IncomingCallPopup from "@/components/IncomingCallPopup"; // bu bileşenin useCall() ile çalışan versiyonu olmalı
 import "./globals.css";
 import { onAuthStateChanged , User} from "firebase/auth";
