@@ -5,6 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import { useCall } from "@/context/Callcontext";
 import LightFrame from "@/components/lightFrame";
 
+// icons
+import VideocamIcon from '@mui/icons-material/Videocam';
+import VideocamOffIcon from '@mui/icons-material/VideocamOff';
+import MicIcon from '@mui/icons-material/Mic';
+import MicOffIcon from '@mui/icons-material/MicOff';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import LightbulbOutlineIcon from '@mui/icons-material/LightbulbOutline';
+import CallEndIcon from '@mui/icons-material/CallEnd';
+
 export default function CallPage() {
   const params = useParams();
   const router = useRouter();
@@ -312,10 +321,10 @@ export default function CallPage() {
                 marginRight: "auto",
               }}
             >
-              <div>
+              {/* <div>
                 <strong>Anlık Veri Kullanımı (Live):</strong>{" "}
-                {bytesToMB(liveBytesSent)} MB gönderildi — {bytesToMB(liveBytesReceived)} MB alındı
-              </div>
+                {bytesToMB(liveBytesSent+ liveBytesReceived)}
+              </div> */}
               <div>
                 <strong>Toplam Kullanım:</strong>{" "}
                 {totalMB.toFixed(2)} MB —{" "}
@@ -423,16 +432,16 @@ export default function CallPage() {
               }}
             >
               <button onClick={toggleVideo}>
-                {videoOn ? "Video Kapat" : "Video Aç"}
+                {videoOn ? <VideocamIcon/> : <VideocamOffIcon/>}
               </button>
               <button onClick={toggleAudio}>
-                {audioOn ? "Ses Kapat" : "Ses Aç"}
+                {audioOn ? <MicIcon/> : <MicOffIcon/>}
               </button>
               <button
                 onClick={handleEnd}
                 style={{ marginLeft: 12, backgroundColor: "red", color: "white", padding: "8px 12px" }}
               >
-                Aramayı Bitir
+                <CallEndIcon/>Aramayı Bitir
               </button>
             </div>
           </LightFrame>

@@ -25,6 +25,9 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { useCall } from "@/context/Callcontext"; // CallProvider'ı kullanmak için
 import { useRouter } from "next/navigation";
+// icons
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import CallIcon from '@mui/icons-material/Call';
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -193,10 +196,13 @@ export default function DashboardPage() {
                                         width={50}
                                         height={50}
                                         style={{ borderRadius: "50%" }}
+                                        unoptimized={true}
                                     />
                                 ) : (
                                     <div
                                         style={{
+                                            minWidth: 50,
+                                            minHeight: 50,
                                             width: 50,
                                             height: 50,
                                             borderRadius: "50%",
@@ -217,7 +223,7 @@ export default function DashboardPage() {
                                     backgroundColor: "#4caf50",
                                     color: "white",
                                     border: "none",
-                                }} onClick={() => startCall(friend.uid)}>Arama Başlat</button>
+                                }} onClick={() => startCall(friend.uid)}><CallIcon/></button>
                                 <button
                                     onClick={() => handleRemoveFriend(friend.uid)}
                                     style={{
@@ -229,7 +235,7 @@ export default function DashboardPage() {
                                         cursor: "pointer",
                                     }}
                                 >
-                                    Arkadaşlıktan Çıkar
+                                    <PersonRemoveIcon/>
                                 </button>
                             </div>
                         ))}

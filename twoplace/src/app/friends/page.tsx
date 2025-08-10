@@ -9,6 +9,9 @@ import { fetchFriendProfiles, removeFriend } from "../search/friends";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCall } from "@/context/Callcontext";
+// icons
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import CallIcon from '@mui/icons-material/Call';
 
 export default function FriendsPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -85,7 +88,7 @@ export default function FriendsPage() {
               }}
             >
               {friend.photoURL ? (
-                <Image
+                <img
                   src={friend.photoURL}
                   alt={friend.displayName}
                   width={50}
@@ -97,6 +100,8 @@ export default function FriendsPage() {
                 <div
                   className="friend-photo-placeholder"
                   style={{
+                    minHeight: 50,
+                    minWidth: 50,
                     width: 50,
                     height: 50,
                     borderRadius: "50%",
@@ -115,13 +120,13 @@ export default function FriendsPage() {
                     backgroundColor: "#4caf50",
                     color: "white",
                     border: "none",
-                  }} onClick={() => startCall(friend.uid)}>Arama Başlat</button>
+                  }} onClick={() => startCall(friend.uid)}><CallIcon/></button>
               <button
                 className="remove-friend-button"
                 style={{ marginLeft: "auto", backgroundColor: "#f44336", color: "white", border: "none", padding: "0.3rem 0.7rem", borderRadius: "4px", cursor: "pointer" }}
                 onClick={() => handleRemoveFriend(friend.uid)}
               >
-                Arkadaşlıktan Çıkar
+                <PersonRemoveIcon />
               </button>
             </div>
           ))}

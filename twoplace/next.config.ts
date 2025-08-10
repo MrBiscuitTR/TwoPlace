@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
         port: '3000',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'twoplace.cagann.dev',
+        pathname: '/**',
+      },
     ],
   },
 };

@@ -14,9 +14,9 @@ export default function IncomingCallPopup() {
     <div className="incoming-call-overlay">
       <div className="incoming-call-modal">
         <h3>{callData.callerUid} seni arıyor</h3>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => acceptCall(callData.id)}>Kabul Et</button>
-          <button onClick={() => rejectCall(callData.id)}>Reddet</button>
+        <div className="incoming-call-buttons" style={{ display: "flex", gap: 8 }}>
+          <button className="accept-button" onClick={() => acceptCall(callData.id)}>Kabul Et</button>
+          <button className="reject-button" onClick={() => rejectCall(callData.id)}>Reddet</button>
         </div>
       </div>
     </div>

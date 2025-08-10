@@ -199,7 +199,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           });
           setLiveBytesSent(s);
           setLiveBytesReceived(r);
-        } catch (e) { }
+        } catch (e) { console.warn("Error getting stats:", e); }
       }, 2000);
 
       // cleanup on end
@@ -406,7 +406,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           });
           setLiveBytesSent(s);
           setLiveBytesReceived(r);
-        } catch (e) { }
+        } catch (e) { console.warn("Error getting stats:", e);}
       }, 2000);
 
       const cleanup = () => {

@@ -15,6 +15,14 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { formatDistanceToNowStrict } from "date-fns";
 
+// icons
+import CallIcon from '@mui/icons-material/Call';
+import CallEndIcon from '@mui/icons-material/CallEnd';
+import CallMadeIcon from '@mui/icons-material/CallMade';
+import CallMissedIcon from '@mui/icons-material/CallMissed';
+import CallMissedOutgoingIcon from '@mui/icons-material/CallMissedOutgoing';
+import CallReceivedIcon from '@mui/icons-material/CallReceived';
+
 interface CallData {
   id: string;
   callerUid: string;

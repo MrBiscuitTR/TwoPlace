@@ -162,7 +162,7 @@ export default function SearchPage() {
                 }}
               >
                 {resultUser.photoURL ? (
-                  <Image
+                  <img
                     src={resultUser.photoURL}
                     alt={resultUser.displayName}
                     width={50}
@@ -172,6 +172,8 @@ export default function SearchPage() {
                 ) : (
                   <div
                     style={{
+                      minHeight: 50,
+                      minWidth: 50,
                       width: 50,
                       height: 50,
                       borderRadius: "50%",

@@ -612,7 +612,7 @@ p {
   z-index: 9999;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0,0,0,0.6);
+  background-color: rgba(32, 32, 32, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -754,4 +754,175 @@ p {
 
 .lightframe-toggle-btn:hover {
   filter: brightness(1.2);
+}
+
+/* ----------- MOBİL UYUMLULUK ------------- */
+
+/* Temel sidebar ve layout responsive düzenlemeleri */
+@media (max-width: 768px) {
+  /* Sidebar mobilde yatay üstte, küçültülmüş */
+  .sidebar {
+    width: 100%;
+    height: 60px;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 12px;
+    box-shadow: none;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+  }
+  
+  .sidebar-title {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+    color: black;
+    flex: 1;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    flex: 3;
+  }
+
+  .sidebar-link {
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Main content üstteki fixed sidebar altında kalmasın diye padding */
+  .main-content {
+    padding-top: 80px;
+  }
+
+  /* Sidebar logout button küçültülsün ve yer değiştir */
+  .logout-button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    margin-top: 0;
+    width: auto;
+  }
+}
+
+/* Daha küçük ekranlar için yazı ve eleman küçültme */
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  h2, h3 {
+    font-size: 1.1rem;
+  }
+
+  .friend-search input {
+    font-size: 14px;
+  }
+
+  /* Arama sayfasındaki input ve butonlar daha dar */
+  .search-page input {
+    width: 140px;
+  }
+
+  .search-page button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  /* Arkadaş kartlarındaki avatar küçültülsün */
+  .friend-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+    margin-right: 8px;
+  }
+
+  .friend-name {
+    font-size: 1rem;
+  }
+
+  .friend-username {
+    font-size: 0.75rem;
+  }
+
+  .friend-button {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Çağrı butonu küçültülsün */
+  .call-button {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Call container küçültme */
+  .call-container {
+    padding: 0.5rem;
+  }
+
+  /* Video preview ve stream preview responsive */
+  .video-preview,
+  .stream-preview,
+  .remote-video,
+  .local-video,
+  .videos-container {
+    max-width: 100%;
+    height: auto;
+    width: 100% !important;
+  }
+
+  /* Local video küçült, konum sabit */
+  .local-video {
+    width: 100px !important;
+    height: 66px !important;
+    bottom: 12px;
+    right: 12px;
+  }
+}
+
+/* Kamera video taşmasını önlemek için esnek ve max boyut */
+.videos-container {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.remote-video {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.local-video {
+  max-width: 150px;
+  max-height: 84px;
+}
+
+/* Sidebar logo veya başlık görünürken link metinleri gizlenebilir küçük ekranlarda */
+@media (max-width: 480px) {
+  .sidebar-link {
+    font-size: 0;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Sidebar link içinde ikon varsa örnek: */
+  /* .sidebar-link svg { width: 24px; height: 24px; } */
+
+  .sidebar-title {
+    display: none; /* Eğer logo varsa onu tut */
+  }
 }
