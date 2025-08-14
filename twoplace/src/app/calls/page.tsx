@@ -121,64 +121,61 @@ export default function CallsPage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
+    <div className="calls" style={{ padding: 20 }}>
       <h1>Çağrı Geçmişi</h1>
-      <table
-        border={1}
-        cellPadding={8}
-        style={{ borderCollapse: "collapse", width: "100%" }}
-      >
-        <thead>
-          <tr>
-            <th>Yön</th>
-            <th>Karşı Taraf</th>
-            <th>Süre</th>
-            <th>Toplam Veri (MB)</th>
-            <th>Başlangıç</th>
-          </tr>
-        </thead>
-        <tbody>
-          {calls.map((call) => {
-            const isOutgoing = call.callerUid === userUid;
-            const partnerUid = isOutgoing ? call.calleeUid : call.callerUid;
-            const partner = callPartners[partnerUid] ?? {
-              username: partnerUid,
-              displayName: "Bilinmeyen",
-            };
+    <table>
+      <thead>
+        <tr>
+          <th>Yön</th>
+          <th>Karşı Taraf</th>
+          <th>Süre</th>
+          <th>Toplam Veri (MB)</th>
+          <th>Başlangıç</th>
+        </tr>
+      </thead>
+      <tbody>
+        {calls.map((call) => {
+          const isOutgoing = call.callerUid === userUid;
+          const partnerUid = isOutgoing ? call.calleeUid : call.callerUid;
+          const partner = callPartners[partnerUid] ?? {
+            username: partnerUid,
+            displayName: "Bilinmeyen",
+          };
 
-            const totalBytes = (call.bytesSent || 0) + (call.bytesReceived || 0);
-            const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+          const totalBytes = (call.bytesSent || 0) + (call.bytesReceived || 0);
+          const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
 
-            let duration = "-";
-            if (call.startedAt?.toDate && call.endedAt?.toDate) {
-              const diffMs =
-                call.endedAt.toDate().getTime() - call.startedAt.toDate().getTime();
-              const seconds = Math.floor(diffMs / 1000);
-              const mins = Math.floor(seconds / 60);
-              const secs = seconds % 60;
-              duration = `${mins}:${secs.toString().padStart(2, "0")}`;
-            }
+          let duration = "-";
+          if (call.startedAt?.toDate && call.endedAt?.toDate) {
+            const diffMs =
+              call.endedAt.toDate().getTime() - call.startedAt.toDate().getTime();
+            const seconds = Math.floor(diffMs / 1000);
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            const hours = Math.floor(mins / 60);
+            duration = hours > 0 ? `${hours}:${mins % 60}:${secs.toString().padStart(2, "0")}` : `${mins}:${secs.toString().padStart(2, "0")}`;
+          }
 
-            return (
-              <tr key={call.id}>
-                <td>{isOutgoing ? "Giden" : "Karşıdan Gelen"}</td>
-                <td>
-                  {partner.displayName} ({partner.username})
-                </td>
-                <td>{duration}</td>
-                <td>{totalMB}</td>
-                <td>
-                  {call.startedAt?.toDate
-                    ? formatDistanceToNowStrict(call.startedAt.toDate(), {
-                        addSuffix: true,
-                      })
-                    : "-"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+          return (
+            <tr key={call.id}>
+              <td data-label="Yön">{isOutgoing ? "Giden" : "Karşıdan Gelen"}</td>
+              <td data-label="Karşı Taraf">
+                {partner.displayName} ({partner.username})
+              </td>
+              <td data-label="Süre">{duration}</td>
+              <td data-label="Toplam Veri (MB)">{totalMB}</td>
+              <td data-label="Başlangıç">
+                {call.startedAt?.toDate
+                  ? formatDistanceToNowStrict(call.startedAt.toDate(), {
+                      addSuffix: true,
+                    })
+                  : "-"}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
   );
 }

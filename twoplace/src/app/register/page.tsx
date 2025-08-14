@@ -41,43 +41,37 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white px-4">
-      <h1 className="text-3xl mb-6">Kayıt Ol</h1>
+    <div className="register">
+      <h1>Kayıt Ol</h1>
 
       <input
         type="text"
         placeholder="Kullanıcı Adı"
-        className="mb-3 p-2 rounded text-black w-full max-w-sm"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
       <input
         type="email"
         placeholder="Email"
-        className="mb-3 p-2 rounded text-black w-full max-w-sm"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <input
         type="password"
         placeholder="Şifre"
-        className="mb-3 p-2 rounded text-black w-full max-w-sm"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <button
-        onClick={handleRegister}
-        className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded w-full max-w-sm mb-3"
-      >
+      <button onClick={handleRegister} className="btn-register">
         Kayıt Ol
       </button>
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
+      {error && <p className="error">{error}</p>}
 
       <p>
         Zaten hesabın var mı?{" "}
-        <a href="/login" className="text-blue-400 hover:underline">
+        <a href="/login">
           Giriş Yap
         </a>
       </p>

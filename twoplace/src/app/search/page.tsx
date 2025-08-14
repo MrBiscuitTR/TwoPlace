@@ -64,7 +64,7 @@ export default function SearchPage() {
         const term = search.toLowerCase();
         return (
           u.username.toLowerCase().includes(term) ||
-          u.displayName.toLowerCase().includes(term)
+          (u.displayName && u.displayName.toLowerCase().includes(term))
         );
       })
       .filter((u) => u.uid !== user?.uid);
@@ -92,9 +92,9 @@ export default function SearchPage() {
       {
         id: newRequestId,
         fromUid: user.uid,
-        fromName: user.displayName,
+        fromName: user.displayName || user.username,
         toUid: toUser.uid,
-        toName: toUser.displayName,
+        toName: toUser.displayName || toUser.username,
         status: "pending",
         sentAt: serverTimestamp() as Timestamp,
       },

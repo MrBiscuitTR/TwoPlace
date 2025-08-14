@@ -4,7 +4,7 @@ export type UserProfile = {
   uid: string
   username: string
   email: string | null
-  displayName: string
+  displayName?: string
   photoURL?: string
   createdAt: Timestamp
   friends?: { [uid: string]: true } // sadece UID'leri tutan bir map
@@ -39,7 +39,7 @@ export type CallRecord = {
 export type SearchResult = {
   uid: string
   username: string
-  displayName: string
+  displayName?: string
   photoURL?: string
   isAlreadyFriend: boolean
   requestPending: boolean

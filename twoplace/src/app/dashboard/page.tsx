@@ -192,7 +192,7 @@ export default function DashboardPage() {
                                 {friend.photoURL ? (
                                     <Image
                                         src={friend.photoURL}
-                                        alt={friend.displayName}
+                                        alt={friend.displayName || friend.username}
                                         width={50}
                                         height={50}
                                         style={{ borderRadius: "50%" }}
@@ -296,7 +296,7 @@ export default function DashboardPage() {
                 </div>
             </section>
 
-            <section style={{ marginTop: "2rem" }}>
+            {/* <section style={{ marginTop: "2rem" }}>
                 <h2>Çağrı Geçmişi</h2>
                 {callHistory.length === 0 && <p>Henüz çağrı geçmişiniz yok.</p>}
                 <ul>
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                         </li>
                     ))}
                 </ul>
-            </section>
+            </section> */}
         </div>
     );
 }

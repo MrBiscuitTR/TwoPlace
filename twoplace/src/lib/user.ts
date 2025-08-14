@@ -30,3 +30,19 @@ export async function createUserProfileIfNotExists(user: User) {
 }
 
 
+// helper function to get user display name from UID
+export async function getUserDisplayNameOrUserNameFromUid(uid: string | undefined): Promise<string> {
+  // Bu fonksiyon, uid'ye göre kullanıcı adını döndürür. firestoredaki users/{uid} dokümanından çekilebilir. en verimli şekilde .
+  if (!uid) {
+    return "Unknown User";
+  }
+  const userDoc = doc(db, "users", uid);
+  const userSnapshot = await getDoc(userDoc);
+  if (userSnapshot.exists()) {
+    const userData = userSnapshot.data();
+    return (userData && "displayName" in userData) ?  userData.displayName : userData.username || "Unknown User"; 
+  }
+  return "Unknown User";
+}
+
+
