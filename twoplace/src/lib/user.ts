@@ -13,7 +13,7 @@ export async function createUserProfileIfNotExists(user: User) {
       uid: user.uid,
       username: user.email?.split("@")[0] || user.uid.slice(0, 6),
       email: user.email || "",
-      displayName: user.displayName || "Anonymous",
+      displayName: user.displayName || user.email?.split("@")[0] ||"Anonymous (Possibly bugged, marked for removal)",
       photoURL: user.photoURL || undefined,
       createdAt: serverTimestamp() as Timestamp,
     };
@@ -32,17 +32,24 @@ export async function createUserProfileIfNotExists(user: User) {
 
 // helper function to get user display name from UID
 export async function getUserDisplayNameOrUserNameFromUid(uid: string | undefined): Promise<string> {
-  // Bu fonksiyon, uid'ye göre kullanıcı adını döndürür. firestoredaki users/{uid} dokümanından çekilebilir. en verimli şekilde .
   if (!uid) {
     return "Unknown User";
   }
-  const userDoc = doc(db, "users", uid);
-  const userSnapshot = await getDoc(userDoc);
-  if (userSnapshot.exists()) {
-    const userData = userSnapshot.data();
-    return (userData && "displayName" in userData) ?  userData.displayName : userData.username || "Unknown User"; 
+  
+  try {
+    const userDoc = doc(db, "users", uid);
+    const userSnapshot = await getDoc(userDoc);
+
+    if (userSnapshot.exists()) {
+      const userData = userSnapshot.data() as { displayName?: string; username: string };
+      return userData.displayName || userData.username;
+    }
+
+    return "Unknown User";
+  } catch (error) {
+    console.error("Error fetching user displayName/username:", error);
+    return "Unknown User";
   }
-  return "Unknown User";
 }
 
 
