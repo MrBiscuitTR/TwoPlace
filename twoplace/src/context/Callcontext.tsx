@@ -168,12 +168,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const unsubCall = onSnapshot(callDocRef, (snap) => {
         const data = snap.data();
         if (!data) return;
+
         if (data.answer && pc && !pc.currentRemoteDescription) {
           pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.warn);
         }
-        // If callee accepted flag changes, update status
+
         if (data.accepted) setCallStatus("accepted");
-        if (data.endedAt) setCallStatus("ended");
+
+        if (data.endedAt) {
+          // Karşı taraf bitirmiş, biz de hemen kendi endCall'imizi çalıştırıyoruz
+          endCall(callRef.id, liveBytesSent, liveBytesReceived);
+          setCallStatus("ended");
+        }
       });
 
       const unsubCalleeCandidates = onSnapshot(collection(callDocRef, "calleeCandidates"), (snap) => {
@@ -200,7 +206,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           setLiveBytesSent(s);
           setLiveBytesReceived(r);
         } catch (e) { console.warn("Error getting stats:", e); }
-      }, 2000);
+      }, 1000);
 
       // cleanup on end
       const cleanup = () => {
@@ -386,10 +392,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       // Also listen for call doc changes
       const unsubCall = onSnapshot(callRef, (snap) => {
-        const d = snap.data();
-        if (!d) return;
-        if (d.endedAt) setCallStatus("ended");
-        if (d.accepted) setCallStatus("accepted");
+        const data = snap.data();
+        if (!data) return;
+
+        if (data.answer && pc && !pc.currentRemoteDescription) {
+          pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.warn);
+        }
+
+        if (data.accepted) setCallStatus("accepted");
+
+        if (data.endedAt) {
+          // Karşı taraf bitirmiş, biz de hemen kendi endCall'imizi çalıştırıyoruz
+          endCall(callRef.id, liveBytesSent, liveBytesReceived);
+          setCallStatus("ended");
+        }
       });
 
       // stats
